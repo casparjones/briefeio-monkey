@@ -92,7 +92,6 @@ function getBriefIo() {
     contact.remove = function() {
       let rev = brief.revisons[this.data._id];
       brief.db.remove(this.data._id, rev).then((result) => {
-        debugger;
         delete brief.revisons[this.data._id];
       });
 
@@ -129,7 +128,6 @@ function getBriefIo() {
   brief.loadContacts = function() {
     var def = jQuery.Deferred();
     brief.db.allDocs({include_docs: true, descending: true}, function(err, doc) {
-      debugger;
       if(err) {
         def.reject(err);
       } else {
