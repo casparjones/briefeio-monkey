@@ -6,7 +6,7 @@
 // @grant       GM_setValue
 // @grant       GM_addStyle
 // @grant       GM_registerMenuCommand
-// @version     1.3
+// @version     1.4
 // @author      frank@lovely-apps.com
 // @require     https://ajax.googleapis.com/ajax/libs/jquery/1.8.2/jquery.min.js
 // @require     https://cdn.jsdelivr.net/npm/pouchdb@8.0.1/dist/pouchdb.min.js
