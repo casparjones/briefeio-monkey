@@ -12,7 +12,7 @@
 // @require     https://cdn.jsdelivr.net/npm/pouchdb@8.0.1/dist/pouchdb.min.js
 // @require     https://cdnjs.cloudflare.com/ajax/libs/crypto-js/3.1.9-1/core.js
 // @require     https://cdnjs.cloudflare.com/ajax/libs/crypto-js/3.1.9-1/md5.js
-// @updateURL   https://gist.github.com/casparjones/2fbd9a7218a20a49df122e88db0bdd18/raw/ce5030028a74678b835d2c1e0740d679d0208dea/briefe.io.user.js
+// @updateURL   https://github.com/casparjones/briefeio-monkey/raw/main/briefe.io.user.js
 // @description briefe.io script for adding contacts and sync to a couchDB instance
 // ==/UserScript==
 
