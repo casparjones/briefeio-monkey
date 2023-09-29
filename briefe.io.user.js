@@ -214,12 +214,32 @@ function getBriefIo() {
   }
 
   brief.config = function() {
-    GM_registerMenuCommand("set couchDB remote URL", () => {
-      let remoteUrl = prompt("Please enter your couchDB URL here!")
-      GM_setValue('remoteUrl', remoteUrl);
-    });
-
     brief.remoteUrl = GM_getValue("remoteUrl")
+
+    GM_registerMenuCommand("set couchDB remote URL", () => {
+      let remoteUrl = GM_getValue("remoteUrl")
+      $('body').append(`
+        <div id="brief_io_modal" style="background-color: white;position: fixed;width: 800px;top: 100px;left: calc(50% - 400px);height: 400px;padding:  15px;border: 1px solid black;border-radius: 15px;">
+          <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/purecss@3.0.0/build/pure-min.css" integrity="sha384-X38yfunGUhNzHpBaEBsWLO+A0HDYOQi8ufWDkZ0k9e0eXz/tH3II7uKZ9msv++Ls" crossorigin="anonymous">
+          <h3>briefe.io config</h3>
+          <form class="pure-form pure-form-stacked">
+              <fieldset>
+                  <legend>Hier bitte den URL String zu deiner CouchDB eintragen. <br/>z.B. <code>https://{user}:{password}@{domain}/{database}</code></legend>
+                  <input id="briefIoValue" type="text" placeholder="https://..." value="${remoteUrl}" class="pure-input-1"/><br/>
+                  <button id="briefIoSaveButton" class="pure-button pure-button-primary">save</button>
+              </fieldset>
+          </form>
+        </div>
+      `);
+
+      $('#briefIoSaveButton').on("click", (e) => {
+        let remoteUrl = $('#briefIoValue').val();
+        GM_setValue('remoteUrl', remoteUrl);
+        $('#brief_io_modal').remove();
+        brief.remoteUrl = GM_getValue("remoteUrl")
+      });
+
+    });
   }
 
   // brief.helper = getHelper();
