@@ -6,7 +6,7 @@
 // @grant       GM_setValue
 // @grant       GM_addStyle
 // @grant       GM_registerMenuCommand
-// @version     1.4
+// @version     1.5
 // @author      frank@lovely-apps.com
 // @require     https://ajax.googleapis.com/ajax/libs/jquery/1.8.2/jquery.min.js
 // @require     https://cdn.jsdelivr.net/npm/pouchdb@8.0.1/dist/pouchdb.min.js
@@ -20,17 +20,22 @@ function getBriefIo() {
   var brief = {};
   brief.revisons = {};
   brief.type = 'sender';
+  brief.contacts = [];
+  brief.bodies = [];
 
   brief.addButtons = function() {
     $($('.im-delight-letters-page-sender .next')[0]).append('<li class="next"><a style="margin-right: 5px; cursor: pointer;" id="save">save</a><li>');
     $($('.im-delight-letters-page-sender .next')[0]).append('<li class="next"><a style="margin-right: 5px; cursor: pointer;" id="delete">delete</a><li>');
     $($('.im-delight-letters-page-recipient .next')[0]).append('<li class="next"><a style="margin-right: 5px; cursor: pointer;" id="save_recipient">save</a><li>');
     $($('.im-delight-letters-page-recipient .next')[0]).append('<li class="next"><a style="margin-right: 5px; cursor: pointer;" id="delete_recipient">delete</a><li>');
+    $($('.im-delight-letters-page-body .next')[0]).append('<li class="next"><a style="margin-right: 5px; cursor: pointer;" id="save_body">save</a><li>');
+    $($('.im-delight-letters-page-body .next')[0]).append('<li class="next"><a style="margin-right: 5px; cursor: pointer;" id="delete_body">delete</a><li>');
   }
 
   brief.addList = function() {
     $($('.im-delight-letters-page-sender .next')[0]).append('<li class="next"><span style="margin-right: 5px; padding: 5px;" id="contact_list"></span><li>');
     $($('.im-delight-letters-page-recipient .next')[0]).append('<li class="next"><span style="margin-right: 5px; padding: 5px;" id="contact_list_receiver"></span><li>');
+    $($('.im-delight-letters-page-body .next')[0]).append('<li class="next"><span style="margin-right: 5px; padding: 5px;" id="body_list"></span><li>');
   }
 
   brief.addEvents = function() {
@@ -38,6 +43,8 @@ function getBriefIo() {
     $('#delete').click(() => { brief.type="sender"; brief.deleteContact();});
     $('#save_recipient').click(() => { brief.type="recipient"; brief.saveContact();});
     $('#delete_recipient').click(() => { brief.type="recipient"; brief.deleteContact();});
+    $('#save_body').click(() => { brief.type="body"; brief.saveBody();});
+    $('#delete_body').click(() => { brief.type="body"; brief.deleteBody();});
   }
 
   brief.newContact = function(data) {
@@ -106,8 +113,72 @@ function getBriefIo() {
     }
 
     contact.data = data;
+    contact.data.type = "contact";
     return contact;
   }
+
+  /* end contact */
+
+  /* start body */
+
+  brief.newBody = function(data) {
+    if(typeof data == "undefined") data = {};
+    let body = { data: {}, elements: {} };
+    body.elements = {
+      'subject': 'textarea[name="letter[body][subject]"]',
+      'message': 'textarea[name="letter[body][message]"]',
+    };
+
+    body.parseHtml = function() {
+      var body = this;
+      Object.keys(body.elements).forEach(function(name) {
+        let key = body.elements[name];
+        if($(key).length > 0) {
+          body.data[name] = $(key).val();
+        }
+      });
+      body.data._id = CryptoJS.MD5(body.getSubject()).toString();
+      if(typeof brief.revisons[body.data._id] !== "undefined") {
+        body.data._rev = brief.revisons[body.data._id];
+      }
+    }
+
+    body.updateHtml = function() {
+      var body = this;
+      Object.keys(body.elements).forEach(function(name) {
+        let key = body.elements[name];
+        if($(key).length > 0) {
+          if($(key).attr('name') == "letter[body][subject]") {
+            $(key).val(body.data.subject);
+          } else {
+            $(key).val(body.data.message);
+          }
+        }
+      });
+    }
+
+    body.remove = function() {
+      let rev = brief.revisons[this.data._id];
+      brief.db.remove(this.data._id, rev).then((result) => {
+        delete brief.revisons[this.data._id];
+      });
+
+    }
+
+    body.getSubject = function() {
+      return this.data.subject;
+    }
+
+    body.getMessage = function() {
+      return this.data.message;
+    }
+
+    body.data = data;
+    body.data.type = "body";
+    return body;
+  }
+
+  /* end body */
 
   brief.saveContact = function() {
     var contact = brief.newContact()
@@ -125,21 +196,58 @@ function getBriefIo() {
     });
   }
 
-  brief.loadContacts = function() {
+  brief.saveBody = function() {
+    var body = brief.newBody()
+    body.parseHtml();
+    brief.db.put(body.data, function callback(err, result) {
+      if (!err) {
+        brief.revisons[result.id] = result.rev;
+        console.log('Successfully saved a body!');
+        brief.updateBodyList().then(() => {
+          brief.selectBodyListId(body.data._id);
+        });
+      } else {
+        console.error(err);
+      }
+    });
+  }
+
+  brief.loadData = function() {
     var def = jQuery.Deferred();
-    brief.db.allDocs({include_docs: true, descending: true}, function(err, doc) {
+    brief.db.allDocs({include_docs: true, descending: true}, (err, doc) => {
       if(err) {
         def.reject(err);
       } else {
-        let contacts = [];
+        brief.contacts = [];
+        brief.bodies = [];
         doc.rows.forEach(function(row) {
           brief.revisons[row.doc._id] = row.doc._rev;
-          contacts.push(brief.newContact(row.doc));
+          if(typeof row.doc.subject !== "undefined") {
+            brief.bodies.push(brief.newBody(row.doc));
+          } else {
+            brief.contacts.push(brief.newContact(row.doc));
+          }
         });
-        def.resolve(contacts);
+        def.resolve();
       }
     });
 
+    return def;
+  }
+
+   brief.loadBodies = function() {
+    var def = jQuery.Deferred();
+    brief.loadData().then(() => {
+      def.resolve(brief.bodies);
+    });
+    return def;
+  }
+
+  brief.loadContacts = function() {
+    var def = jQuery.Deferred();
+    brief.loadData().then(() => {
+      def.resolve(brief.contacts);
+    });
     return def;
   }
 
@@ -147,6 +255,15 @@ function getBriefIo() {
     var def = jQuery.Deferred();
     brief.db.get(id).then(function(doc) {
       def.resolve(brief.newContact(doc));
+    })
+
+    return def;
+  }
+
+  brief.getBody = function(id) {
+    var def = jQuery.Deferred();
+    brief.db.get(id).then(function(doc) {
+      def.resolve(brief.newBody(doc));
     })
 
     return def;
@@ -169,22 +286,52 @@ function getBriefIo() {
     })
   }
 
+  brief.changeBody = function(option) {
+    brief.type = "body";
+    let id = $(option.target).val();
+    brief.getBody(id).done(function(body) {
+      body.updateHtml();
+    })
+  }
+
+  brief.updateBodyList = function() {
+    var def = jQuery.Deferred();
+    brief.loadBodies().done((bodies) => {
+      var select_body = $('<select id="body_selection" style="border: 0; box-shadow: none;" class="form-control im-delight-letters-autosave">');
+      var option_body = $('<option value="0">choose Body</option>');
+      select_body.append(option_body);
+
+      bodies.forEach(function(body) {
+        option_body = $('<option value="' + body.data._id + '">' + body.getSubject() + '</option>');
+        select_body.append(option_body);
+      });
+
+      $('#body_list').html(select_body);
+      $('#body_list select').on('change', brief.changeBody);
+
+
+      def.resolve();
+    });
+    return def;
+  }
+
   brief.updateList = function() {
     var def = jQuery.Deferred();
     brief.loadContacts().done(function(contacts) {
       var select = $('<select id="contact_selection" style="border: 0; box-shadow: none;" class="form-control im-delight-letters-autosave">');
       var select_receiver = $('<select id="contact_selection_receiver" style="border: 0; box-shadow: none;" class="form-control im-delight-letters-autosave">');
-      var option1 = $('<option value="0">choose Contact</option>');
-      var option2 = $('<option value="0">choose Contact</option>');
-      select.append(option1);
-      select_receiver.append(option2);
+      var option_sender = $('<option value="0">choose Contact</option>');
+      var option_reciver = $('<option value="0">choose Contact</option>');
+      select.append(option_sender);
+      select_receiver.append(option_reciver);
 
       contacts.forEach(function(contact) {
-        option1 = $('<option value="' + contact.data._id + '">' + contact.getName() + '</option>');
-        option2 = $('<option value="' + contact.data._id + '">' + contact.getName() + '</option>');
-        select.append(option1);
-        select_receiver.append(option2);
-      })
+        option_sender = $('<option value="' + contact.data._id + '">' + contact.getName() + '</option>');
+        option_reciver = $('<option value="' + contact.data._id + '">' + contact.getName() + '</option>');
+        select.append(option_sender);
+        select_receiver.append(option_reciver);
+      });
+
 
       $('#contact_list').html(select);
       $('#contact_list select').on('change', brief.changeContact);
@@ -193,6 +340,7 @@ function getBriefIo() {
       $('#contact_list_receiver select').on('change', brief.changeContactReceiver);
       def.resolve();
     });
+
     return def;
   }
 
@@ -201,11 +349,23 @@ function getBriefIo() {
     $('#contact_list_receiver select').val(id);
   }
 
+  brief.selectBodyListId = function(id) {
+    $('#body_list select').val(id);
+  }
+
   brief.deleteContact = function(option) {
     let id = $('#contact_selection').val();
     brief.getContact(id).done(function(contact) {
       contact.remove();
       brief.updateList();
+    })
+  }
+
+  brief.deleteBody = function(option) {
+    let id = $('#body_list select').val();
+    brief.getBody(id).done(function(body) {
+      body.remove();
+      brief.updateBodyList();
     })
   }
 
@@ -251,6 +411,7 @@ function getBriefIo() {
     brief.addButtons();
     brief.addList();
     brief.updateList();
+    brief.updateBodyList();
     brief.addEvents();
   }
   return brief;
