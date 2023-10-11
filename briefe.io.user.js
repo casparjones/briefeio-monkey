@@ -6,7 +6,7 @@
 // @grant       GM_setValue
 // @grant       GM_addStyle
 // @grant       GM_registerMenuCommand
-// @version     1.5
+// @version     1.6
 // @author      frank@lovely-apps.com
 // @require     https://ajax.googleapis.com/ajax/libs/jquery/1.8.2/jquery.min.js
 // @require     https://cdn.jsdelivr.net/npm/pouchdb@8.0.1/dist/pouchdb.min.js
@@ -375,6 +375,14 @@ function getBriefIo() {
 
   brief.config = function() {
     brief.remoteUrl = GM_getValue("remoteUrl")
+
+     GM_registerMenuCommand("set Em Space to clipboard for more then on linebreak", async () => {
+        navigator.clipboard.writeText(' ');
+        console.log('Em Space copied to clipboard');
+        alert("Em Space copied to clipboard");
+    });
+
+
 
     GM_registerMenuCommand("set couchDB remote URL", () => {
       let remoteUrl = GM_getValue("remoteUrl")
