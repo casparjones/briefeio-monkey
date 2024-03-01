@@ -214,7 +214,8 @@ function getBriefIo() {
 
   brief.loadData = function() {
     var def = jQuery.Deferred();
-    brief.db.allDocs({include_docs: true, descending: true}, (err, doc) => {
+    // brief.db.allDocs({include_docs: true, descending: true}, (err, doc) => {
+    brief.db.query('sortierung/nachVornamen', {include_docs: true, descending: true}, (err, doc) => {
       if(err) {
         def.reject(err);
       } else {
