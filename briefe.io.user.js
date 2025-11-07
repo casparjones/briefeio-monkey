@@ -6,7 +6,7 @@
 // @grant       GM_setValue
 // @grant       GM_addStyle
 // @grant       GM_registerMenuCommand
-// @version     1.6
+// @version     1.7
 // @author      frank@lovely-apps.com
 // @require     https://ajax.googleapis.com/ajax/libs/jquery/1.8.2/jquery.min.js
 // @require     https://cdn.jsdelivr.net/npm/pouchdb@8.0.1/dist/pouchdb.min.js
@@ -319,6 +319,16 @@ function getBriefIo() {
   brief.updateList = function() {
     var def = jQuery.Deferred();
     brief.loadContacts().done(function(contacts) {
+
+      // <-- sort alphabetically by name (case-insensitive)
+      contacts.sort(function(a, b) {
+        const nameA = (a.getName() || "").toLowerCase();
+        const nameB = (b.getName() || "").toLowerCase();
+        if (nameA < nameB) return -1;
+        if (nameA > nameB) return 1;
+        return 0;
+      });
+
       var select = $('<select id="contact_selection" style="border: 0; box-shadow: none;" class="form-control im-delight-letters-autosave">');
       var select_receiver = $('<select id="contact_selection_receiver" style="border: 0; box-shadow: none;" class="form-control im-delight-letters-autosave">');
       var option_sender = $('<option value="0">choose Contact</option>');
@@ -332,7 +342,6 @@ function getBriefIo() {
         select.append(option_sender);
         select_receiver.append(option_reciver);
       });
-
 
       $('#contact_list').html(select);
       $('#contact_list select').on('change', brief.changeContact);
