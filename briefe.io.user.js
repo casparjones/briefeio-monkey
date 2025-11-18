@@ -1,20 +1,145 @@
 // ==UserScript==
-// @name        briefe.io
-// @namespace   Violentmonkey Scripts
-// @match       https://www.briefe.io/*
-// @grant       GM_getValue
-// @grant       GM_setValue
-// @grant       GM_addStyle
-// @grant       GM_registerMenuCommand
-// @version     1.7
-// @author      frank@lovely-apps.com
-// @require     https://ajax.googleapis.com/ajax/libs/jquery/1.8.2/jquery.min.js
-// @require     https://cdn.jsdelivr.net/npm/pouchdb@8.0.1/dist/pouchdb.min.js
-// @require     https://cdnjs.cloudflare.com/ajax/libs/crypto-js/3.1.9-1/core.js
-// @require     https://cdnjs.cloudflare.com/ajax/libs/crypto-js/3.1.9-1/md5.js
-// @updateURL   https://github.com/casparjones/briefeio-monkey/raw/main/briefe.io.user.js
-// @description briefe.io script for adding contacts and sync to a couchDB instance
+// @name         briefe.io
+// @namespace    Violentmonkey Scripts
+// @match        https://www.briefe.io/*
+// @grant        GM_getValue
+// @grant        GM_setValue
+// @grant        GM_addStyle
+// @grant        GM_registerMenuCommand
+// @version      2.0
+// @author       frank@vlatten.dev
+// @require      https://ajax.googleapis.com/ajax/libs/jquery/1.8.2/jquery.min.js
+// @require      https://cdn.jsdelivr.net/npm/pouchdb@8.0.1/dist/pouchdb.min.js
+// @require      https://cdnjs.cloudflare.com/ajax/libs/crypto-js/3.1.9-1/core.js
+// @require      https://cdnjs.cloudflare.com/ajax/libs/crypto-js/3.1.9-1/md5.js
+// @updateURL    https://github.com/casparjones/briefeio-monkey/raw/main/briefe.io.user.js
+// @downloadURL  https://github.com/casparjones/briefeio-monkey/raw/main/briefe.io.user.js
+// @description  briefe.io script for adding contacts and sync to a couchDB instance
 // ==/UserScript==
+
+// --- Minimal jQuery compatible native wrapper packaged as getDollar() ---
+function getDollar() {
+
+    class DollarWrapper {
+        constructor(elements) {
+            this.elements = Array.from(elements || []);
+            this.length = this.elements.length;
+
+            // direct index access like jQuery $(x)[0]
+            for (let i = 0; i < this.length; i++) {
+                this[i] = this.elements[i];
+            }
+        }
+
+        html(content) {
+            if (content === undefined) {
+                return this.length ? this.elements[0].innerHTML : undefined;
+            }
+
+            this.elements.forEach(el => {
+                if (content instanceof DollarWrapper) {
+                    // Clear old content
+                    el.innerHTML = "";
+                    content.elements.forEach(child => el.appendChild(child.cloneNode(true)));
+                } else if (content instanceof Element) {
+                    el.innerHTML = "";
+                    el.appendChild(content.cloneNode(true));
+                } else {
+                    // String fallback
+                    el.innerHTML = content;
+                }
+            });
+
+            return this;
+        }
+
+        val(value) {
+            if (value === undefined) {
+                return this.length ? this.elements[0].value : undefined;
+            }
+            this.elements.forEach(el => el.value = value);
+            return this;
+        }
+
+        append(item) {
+            this.elements.forEach(el => {
+                if (typeof item === "string") {
+                    el.insertAdjacentHTML("beforeend", item);
+                } else if (item instanceof DollarWrapper) {
+                    item.elements.forEach(child => el.appendChild(child));
+                } else {
+                    el.appendChild(item);
+                }
+            });
+            return this;
+        }
+
+        attr(name, value) {
+            if (value === undefined) {
+                return this.length ? this.elements[0].getAttribute(name) : undefined;
+            }
+            this.elements.forEach(el => el.setAttribute(name, value));
+            return this;
+        }
+
+        on(event, fn) {
+            this.elements.forEach(el => el.addEventListener(event, fn));
+            return this;
+        }
+
+        click(fn) {
+            return this.on("click", fn);
+        }
+
+        remove() {
+            this.elements.forEach(el => el.remove());
+            return this;
+        }
+    }
+
+    function dollar(selector) {
+
+        // HTML → Create Element
+        if (typeof selector === "string" && selector.trim().startsWith("<")) {
+            const t = document.createElement("template");
+            t.innerHTML = selector.trim();
+            return new DollarWrapper([t.content.firstChild]);
+        }
+
+        // String selector → NodeList
+        if (typeof selector === "string") {
+            return new DollarWrapper(document.querySelectorAll(selector));
+        }
+
+        // Element passed
+        if (selector instanceof Element) {
+            return new DollarWrapper([selector]);
+        }
+
+        // NodeList, Array, etc.
+        return new DollarWrapper(selector);
+    }
+
+    dollar.createDeferred = function() {
+      let resolveFn, rejectFn;
+
+      const promise = new Promise((res, rej) => {
+          resolveFn = res;
+          rejectFn = rej;
+      });
+
+      return {
+          promise,
+          resolve: resolveFn,
+          reject: rejectFn,
+          then: (...args) => promise.then(...args),
+          done: (fn) => { promise.then(fn); return this; },
+          fail: (fn) => { promise.catch(fn); return this; }
+      };
+    }
+
+    return dollar;
+}
 
 function getBriefIo() {
   var brief = {};
@@ -22,6 +147,7 @@ function getBriefIo() {
   brief.type = 'sender';
   brief.contacts = [];
   brief.bodies = [];
+  const $ = getDollar();
 
   brief.addButtons = function() {
     $($('.im-delight-letters-page-sender .next')[0]).append('<li class="next"><a style="margin-right: 5px; cursor: pointer;" id="save">save</a><li>');
@@ -98,7 +224,7 @@ function getBriefIo() {
 
     contact.remove = function() {
       let rev = brief.revisons[this.data._id];
-      brief.db.remove(this.data._id, rev).then((result) => {
+      brief.db.remove(this.data._id, rev).then(() => {
         delete brief.revisons[this.data._id];
       });
 
@@ -159,7 +285,7 @@ function getBriefIo() {
 
     body.remove = function() {
       let rev = brief.revisons[this.data._id];
-      brief.db.remove(this.data._id, rev).then((result) => {
+      brief.db.remove(this.data._id, rev).then(() => {
         delete brief.revisons[this.data._id];
       });
 
@@ -196,26 +322,45 @@ function getBriefIo() {
     });
   }
 
-  brief.saveBody = function() {
-    var body = brief.newBody()
-    body.parseHtml();
-    brief.db.put(body.data, function callback(err, result) {
-      if (!err) {
-        brief.revisons[result.id] = result.rev;
-        console.log('Successfully saved a body!');
-        brief.updateBodyList().then(() => {
+  brief.saveBody = async function() {
+      const body = brief.newBody();
+      body.parseHtml();
+
+      try {
+          // Prüfen ob Dokument existiert
+          const existing = await brief.db.get(body.data._id);
+
+          // vorhandene _rev übernehmen
+          body.data._rev = existing._rev;
+
+          // Update schreiben
+          const result = await brief.db.put(body.data);
+
+          brief.revisons[result.id] = result.rev;
+          console.log("Updated body!");
+          await brief.updateBodyList();
           brief.selectBodyListId(body.data._id);
-        });
-      } else {
-        console.error(err);
+
+      } catch (err) {
+          if (err.status === 404) {
+              // Dokument existiert noch nicht → Neu anlegen
+              const result = await brief.db.put(body.data);
+
+              brief.revisons[result.id] = result.rev;
+              console.log("Created new body!");
+              await brief.updateBodyList();
+              brief.selectBodyListId(body.data._id);
+
+          } else {
+              console.error(err);
+          }
       }
-    });
   }
 
   brief.loadData = function() {
-    var def = jQuery.Deferred();
+    var def = $.createDeferred();
     // brief.db.allDocs({include_docs: true, descending: true}, (err, doc) => {
-    brief.db.query('contacts_by_name', {include_docs: true, descending: true}, (err, doc) => {
+    brief.db.allDocs({include_docs: true, descending: true}, (err, doc) => {
       if(err) {
         def.reject(err);
       } else {
@@ -225,7 +370,7 @@ function getBriefIo() {
           brief.revisons[row.doc._id] = row.doc._rev;
           if(typeof row.doc.subject !== "undefined") {
             brief.bodies.push(brief.newBody(row.doc));
-          } else {
+          } else if(typeof row.doc.name !== "undefined") {
             brief.contacts.push(brief.newContact(row.doc));
           }
         });
@@ -237,7 +382,7 @@ function getBriefIo() {
   }
 
    brief.loadBodies = function() {
-    var def = jQuery.Deferred();
+    var def = $.createDeferred();
     brief.loadData().then(() => {
       def.resolve(brief.bodies);
     });
@@ -245,7 +390,7 @@ function getBriefIo() {
   }
 
   brief.loadContacts = function() {
-    var def = jQuery.Deferred();
+    var def = $.createDeferred();
     brief.loadData().then(() => {
       def.resolve(brief.contacts);
     });
@@ -253,7 +398,7 @@ function getBriefIo() {
   }
 
   brief.getContact = function(id) {
-    var def = jQuery.Deferred();
+    var def = $.createDeferred();
     brief.db.get(id).then(function(doc) {
       def.resolve(brief.newContact(doc));
     })
@@ -262,7 +407,7 @@ function getBriefIo() {
   }
 
   brief.getBody = function(id) {
-    var def = jQuery.Deferred();
+    var def = $.createDeferred();
     brief.db.get(id).then(function(doc) {
       def.resolve(brief.newBody(doc));
     })
@@ -296,9 +441,9 @@ function getBriefIo() {
   }
 
   brief.updateBodyList = function() {
-    var def = jQuery.Deferred();
+    var def = $.createDeferred();
     brief.loadBodies().done((bodies) => {
-      var select_body = $('<select id="body_selection" style="border: 0; box-shadow: none;" class="form-control im-delight-letters-autosave">');
+      var select_body = $('<select id="body_selection" style="border: 0; box-shadow: none; max-width: 640px" class="form-control im-delight-letters-autosave">');
       var option_body = $('<option value="0">choose Body</option>');
       select_body.append(option_body);
 
@@ -317,7 +462,7 @@ function getBriefIo() {
   }
 
   brief.updateList = function() {
-    var def = jQuery.Deferred();
+    var def = $.createDeferred();
     brief.loadContacts().done(function(contacts) {
 
       // <-- sort alphabetically by name (case-insensitive)
@@ -337,11 +482,13 @@ function getBriefIo() {
       select_receiver.append(option_reciver);
 
       contacts.forEach(function(contact) {
-        option_sender = $('<option value="' + contact.data._id + '">' + contact.getName() + '</option>');
-        option_reciver = $('<option value="' + contact.data._id + '">' + contact.getName() + '</option>');
-        select.append(option_sender);
-        select_receiver.append(option_reciver);
+          let option_sender = $('<option value="' + contact.data._id + '">' + contact.getName() + '</option>');
+          let option_reciver = $('<option value="' + contact.data._id + '">' + contact.getName() + '</option>');
+
+          select.append(option_sender[0]);          // <– wichtig
+          select_receiver.append(option_reciver[0]); // <– wichtig
       });
+
 
       $('#contact_list').html(select);
       $('#contact_list select').on('change', brief.changeContact);
