@@ -178,8 +178,16 @@ I would appreciate some suggestions for new features (address book export, encry
 
 ## 📜 License
 
-MIT License
-Free to use, modify, and distribute.
+**GNU General Public License v3.0**
+
+This project is licensed under the GPL-3.0.  
+You are free to use, modify, and distribute the software, provided that:
+
+- any derivative work is also distributed under the GPL-3.0  
+- the copyright notices remain intact  
+- the source code remains available under the same license  
+
+The software is provided "as-is", without any warranty.
 
 ---
 
